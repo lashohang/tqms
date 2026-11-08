@@ -1,5 +1,11 @@
-import VehicleOwnerPage from '@/features/vehicles/components/VehicleOwnerPage';
+'use client';
 
-export default function Page() {
-  return <VehicleOwnerPage />;
+import VehicleOwnerForm from '@/features/vehicle-owner/components/VehicleOwnerForm';
+
+export default function AddVehicleOwnerPage() {
+  return (
+    <main>
+      <VehicleOwnerForm />
+    </main>
+  );
 }
