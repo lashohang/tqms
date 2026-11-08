@@ -1,11 +1,11 @@
 'use client';
 
-import VehicleOwnerForm from '@/features/vehicle-owner/components/VehicleOwnerForm';
+import VehicleRegistrationPage from '@/features/vehicles/components/VehicleRegistrationPage';
 
 export default function AddVehicleOwnerPage() {
   return (
     <main>
-      <VehicleOwnerForm />
+      <VehicleRegistrationPage />
     </main>
   );
 }
