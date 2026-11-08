@@ -98,7 +98,7 @@ export default function AdminAddUserPage() {
       name: formData.staffName,
       address: formData.streetAddress ? `${formData.streetAddress}, ${formData.district}` : `${formData.district}, ${formData.state}`,
       contact: formData.mobileNumber,
-      status: false // Default status is inactive upon creation
+      status: false 
     };
 
     // Commit modified entity elements array globally and push router window backwards

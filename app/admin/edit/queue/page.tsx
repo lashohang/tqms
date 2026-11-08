@@ -18,6 +18,10 @@ interface VehicleLog {
   id: number;
   vehicleNo: string;
   vehicleType?: string;
+  plateNo?: string;
+  vehicleNumber?: string;
+  lotNo?: string;
+  plateType?: string;
 }
 
 interface QueueItem {
@@ -43,6 +47,37 @@ interface QueueItem {
 }
 
 // -----------------------------------------
+// DEFAULT VEHICLES
+// -----------------------------------------
+
+const DEFAULT_VEHICLES: VehicleLog[] = [
+  {
+    id: 1,
+    vehicleNo: 'BA-7-KHA-6666',
+    plateNo: 'BA-7-KHA-6666',
+    vehicleNumber: '6666',
+    lotNo: '96',
+    vehicleType: 'Truck 12 Wheeler 21 Ton',
+  },
+  {
+    id: 2,
+    vehicleNo: 'BA-7-KHA-5554',
+    plateNo: 'BA-7-KHA-5554',
+    vehicleNumber: '5554',
+    lotNo: '96',
+    vehicleType: 'Container 10 Wheeler 17 Ton',
+  },
+  {
+    id: 3,
+    vehicleNo: 'BA-7-KHA-3434',
+    plateNo: 'BA-7-KHA-3434',
+    vehicleNumber: '3434',
+    lotNo: '96',
+    vehicleType: 'Mini Truck',
+  },
+];
+
+// -----------------------------------------
 // VALIDATION SCHEMA
 // -----------------------------------------
 
@@ -51,7 +86,7 @@ const queueSchema = z.object({
   from: z.string().min(1, 'From point is required'),
   to: z.string().min(1, 'To point is required'),
   checkpointEntry: z.string().min(1, 'Checkpoint selection required'),
-  grossWeight: z.coerce.number().min(1, 'Gross Weight must be entered to process'),
+  grossWeight: z.number().min(1, 'Gross Weight must be entered to process'),
   entryDate: z.string().min(1, 'Entry date is required'),
   companyName: z.string().optional(),
   loadDetails: z.string().optional(),
@@ -60,7 +95,7 @@ const queueSchema = z.object({
   driversPhone: z.string().min(10, "Driver's phone number is required"),
 });
 
-type QueueFormInputs = z.infer<typeof queueSchema>;
+type QueueFormData = z.infer<typeof queueSchema>;
 
 // -----------------------------------------
 // MAIN CHECKPOINT COMPONENT
@@ -93,27 +128,27 @@ function CheckpointQueueContent() {
   // ---------------------------------------
 
   const {
-    register,
-    handleSubmit,
-    watch,
-    setValue,
-    formState: { errors, isSubmitting }
-  } = useForm<QueueFormInputs>({
-    resolver: zodResolver(queueSchema),
-    defaultValues: {
-      vehicleNo: '',
-      from: 'Maiwakhola',
-      to: 'Sidingba',
-      checkpointEntry: 'First Checkpoint',
-      grossWeight: '' as unknown as number,
-      entryDate: '',
-      companyName: '',
-      loadDetails: '',
-      material: 'Pen',
-      narration: 'Hello sir. How do you do?',
-      driversPhone: ''
-    }
-  });
+  register,
+  handleSubmit,
+  watch,
+  setValue,
+  formState: { errors, isSubmitting }
+} = useForm<QueueFormData>({
+  resolver: zodResolver(queueSchema),
+  defaultValues: {
+    vehicleNo: '',
+    from: 'Maiwakhola',
+    to: 'Sidingba',
+    checkpointEntry: 'First Checkpoint',
+    grossWeight: '' as unknown as number,
+    entryDate: '',
+    companyName: '',
+    loadDetails: '',
+    material: 'Pen',
+    narration: 'Hello sir. How do you do?',
+    driversPhone: ''
+  }
+});
 
   // Watched form values
   const watchedVehicleNo = watch('vehicleNo');
@@ -153,21 +188,46 @@ function CheckpointQueueContent() {
 
   const loadVehicles = () => {
     try {
-      const savedVehicles = localStorage.getItem('tqms_vehicles');
+      const savedVehicles = localStorage.getItem('tqms_vehicles_list');
 
       if (!savedVehicles) {
-        setVehicleOptions([]);
+        setVehicleOptions(DEFAULT_VEHICLES);
         return;
       }
 
       const parsedVehicles = JSON.parse(savedVehicles);
 
+      if (!Array.isArray(parsedVehicles) || parsedVehicles.length === 0) {
+        setVehicleOptions(DEFAULT_VEHICLES);
+        return;
+      }
+
+      const formattedVehicles: VehicleLog[] = parsedVehicles.map(
+        (vehicle: any, index: number) => ({
+          id: Number(vehicle.id) || index + 1,
+          vehicleNo:
+            vehicle.plateNo ||
+            vehicle.vehicleNumber ||
+            vehicle.vehicleNo ||
+            '',
+          plateNo: vehicle.plateNo || '',
+          vehicleNumber: vehicle.vehicleNumber || '',
+          lotNo: vehicle.lotNo || '',
+          plateType: vehicle.plateType || '',
+          vehicleType: vehicle.vehicleType || '',
+        })
+      );
+
+      const validVehicles = formattedVehicles.filter(
+        (vehicle) => vehicle.vehicleNo
+      );
+
       setVehicleOptions(
-        Array.isArray(parsedVehicles) ? parsedVehicles : []
+        validVehicles.length > 0 ? validVehicles : DEFAULT_VEHICLES
       );
     } catch (error) {
-      console.error('Error loading vehicles:', error);
-      setVehicleOptions([]);
+      console.error('Error loading registered vehicles:', error);
+      setVehicleOptions(DEFAULT_VEHICLES);
     }
   };
 
@@ -195,7 +255,8 @@ function CheckpointQueueContent() {
       }
 
       // Keep the original sequential Vehicle No.
-setValue('vehicleNo', String(match.serialNo ?? ''));
+      setValue('vehicleNo', String(match.serialNo ?? ''));
+
       setValue('from', match.from || 'Maiwakhola');
       setValue('to', match.to || 'Sidingba');
 
@@ -209,6 +270,7 @@ setValue('vehicleNo', String(match.serialNo ?? ''));
       );
 
       setValue('material', match.material || 'Pen');
+
       setValue(
         'narration',
         match.narration || 'Hello sir. How do you do?'
@@ -218,27 +280,77 @@ setValue('vehicleNo', String(match.serialNo ?? ''));
         setSelectedFee(String(match.feeAmount));
       }
 
-      // Restore previously selected registered vehicle, if available
-      if (match.registeredVehicleNo) {
-        const vehicles = localStorage.getItem('tqms_vehicles');
-        const parsedVehicles: VehicleLog[] = vehicles
-          ? JSON.parse(vehicles)
-          : [];
-
-        const existingVehicle = parsedVehicles.find(
-          (vehicle) =>
-            vehicle.vehicleNo === match.registeredVehicleNo
-        );
-
-        if (existingVehicle) {
-          setSelectedVehicle(existingVehicle);
-        }
-      }
-
     } catch (error) {
       console.error('Error loading queue:', error);
     }
   }, [editId, setValue]);
+
+  // ---------------------------------------
+  // RESTORE PREVIOUSLY SELECTED VEHICLE
+  // ---------------------------------------
+
+  useEffect(() => {
+    if (!editId || vehicleOptions.length === 0) return;
+
+    try {
+      const saved = localStorage.getItem('tqms_live_queues');
+
+      const items: QueueItem[] = saved ? JSON.parse(saved) : [];
+
+      const match = items.find(
+        (item) => String(item.id) === String(editId)
+      );
+
+      if (!match) return;
+
+      const savedVehicleNo = String(
+        match.registeredVehicleNo || ''
+      )
+        .trim()
+        .toLowerCase();
+
+      if (!savedVehicleNo) {
+        setSelectedVehicle(null);
+        return;
+      }
+
+      const existingVehicle = vehicleOptions.find((vehicle) => {
+        const possibleNumbers = [
+          vehicle.vehicleNo,
+          vehicle.plateNo,
+          vehicle.vehicleNumber,
+        ];
+
+        return possibleNumbers.some(
+          (number) =>
+            String(number || '').trim().toLowerCase() === savedVehicleNo
+        );
+      });
+
+      setSelectedVehicle(existingVehicle || null);
+
+      if (existingVehicle) {
+        const queues: QueueItem[] = saved ? JSON.parse(saved) : [];
+
+        const activeQueue = queues.some((item) => {
+          const sameVehicle =
+            item.registeredVehicleNo === existingVehicle.vehicleNo ||
+            item.vehicleNo === existingVehicle.vehicleNo;
+
+          return (
+            sameVehicle &&
+            item.status === 'in_job' &&
+            String(item.id) !== String(editId)
+          );
+        });
+
+        setHasActiveQueue(activeQueue);
+      }
+
+    } catch (error) {
+      console.error('Error restoring matched vehicle:', error);
+    }
+  }, [editId, vehicleOptions]);
 
   // ---------------------------------------
   // FILTER VEHICLES
@@ -300,7 +412,7 @@ setValue('vehicleNo', String(match.serialNo ?? ''));
   // SUBMIT AND UPDATE QUEUE
   // ---------------------------------------
 
-  const onQueueSubmit: SubmitHandler<QueueFormInputs> = async (formData) => {
+  const onQueueSubmit: SubmitHandler<QueueFormData> = async (formData) => {
     if (!editId) {
       alert('Pending queue ID is missing.');
       return;
@@ -331,9 +443,7 @@ setValue('vehicleNo', String(match.serialNo ?? ''));
             ...item,
 
             // Preserve the original sequential Vehicle No.
-  serialNo: item.serialNo,
-
-            // Preserve the original serial number
+            serialNo: item.serialNo,
 
             // Save selected registration separately
             registeredVehicleNo: selectedVehicle.vehicleNo,
@@ -353,7 +463,7 @@ setValue('vehicleNo', String(match.serialNo ?? ''));
             narration: formData.narration,
             driversPhone: formData.driversPhone,
 
-            status: 'in_job',
+            status: 'in_job' as const,
 
             queueNo:
               item.queueNo ||
@@ -403,16 +513,27 @@ setValue('vehicleNo', String(match.serialNo ?? ''));
         </h1>
 
         <div className="text-[10px] text-gray-400 font-medium flex items-center gap-1 mt-0.5">
-          <span className="text-amber-600 cursor-pointer"onClick={() => router.push('/admin/dashboard')}>Dashboard</span>
+          <span
+            className="text-amber-600 cursor-pointer"
+            onClick={() => router.push('/admin/dashboard')}
+          >
+            Dashboard
+          </span>
+
           <span>&gt;</span>
-          <span className="text-amber-600 cursor-pointer"onClick={() => router.push('/admin/queue')}>Queue</span>
+
+          <span
+            className="text-amber-600 cursor-pointer"
+            onClick={() => router.push('/admin/queue')}
+          >
+            Queue
+          </span>
+
           <span>&gt;</span>
+
           <span>{watchedVehicleNo || '---'}</span>
         </div>
       </div>
-
-      {/* INFORMATION NOTICE */}
-
 
       {/* MAIN FORM */}
 
@@ -443,7 +564,7 @@ setValue('vehicleNo', String(match.serialNo ?? ''));
 
               {selectedVehicle && !hasActiveQueue && (
                 <div className="text-center rounded-md px-3 py-2">
-                  <p className="text-[9px] font-bold text-black-800">
+                  <p className="text-[9px] font-bold text-gray-800">
                     There is no active queue for this vehicle.
                   </p>
 
@@ -455,55 +576,45 @@ setValue('vehicleNo', String(match.serialNo ?? ''));
 
             </div>
 
-            {/* MATCHED VEHICLE BUTTON */}
+            <div className="flex flex-wrap items-end gap-3">
 
-           
+              {/* REGISTERED VEHICLE */}
 
-            {/* REGISTERED VEHICLE NUMBER */}
+              {selectedVehicle && (
+                <div className="flex flex-col gap-1.5 flex-1 min-w-[180px] max-w-sm">
+                  <label className="text-xs font-bold text-gray-700">
+                    Registered Vehicle No.*
+                  </label>
 
-            {/* REGISTERED VEHICLE + MATCHED VEHICLE BUTTON */}
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={selectedVehicle.vehicleNo}
+                      readOnly
+                      className="w-full px-3 py-2 pr-10 border border-emerald-300 bg-emerald-50 text-gray-800 rounded text-xs font-semibold outline-none"
+                    />
 
-<div className="flex flex-wrap items-end gap-3">
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-600 font-bold">
+                      ✓
+                    </span>
+                  </div>
+                </div>
+              )}
 
-  {/* REGISTERED VEHICLE - LEFT SIDE */}
+              <button
+                type="button"
+                onClick={() => {
+                  loadVehicles();
+                  setShowVehicleModal(true);
+                }}
+                className="w-24 h-11 bg-[#b06000] hover:bg-[#914e00] rounded text-white flex flex-col items-center justify-center text-center font-bold text-[10px] uppercase tracking-wider shadow-sm transition-colors"
+              >
+                <span>Matched</span>
+                <span>Vehicle</span>
+              </button>
 
-  {selectedVehicle && (
-    <div className="flex flex-col gap-1.5 flex-1 min-w-[180px] max-w-sm">
-      <label className="text-xs font-bold text-gray-700">
-        Registered Vehicle No.*
-      </label>
+            </div>
 
-      <div className="relative">
-        <input
-          type="text"
-          value={selectedVehicle.vehicleNo}
-          readOnly
-          className="w-full px-3 py-2 pr-10 border border-emerald-300 bg-emerald-50 text-gray-800 rounded text-xs font-semibold outline-none"
-        />
-
-        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-600 font-bold">
-          ✓
-        </span>
-      </div>
-    </div>
-  )}
-
-  {/* MATCHED VEHICLE BUTTON - RIGHT SIDE */}
-
-  <button
-    type="button"
-    onClick={() => {
-      loadVehicles();
-      setShowVehicleModal(true);
-    }}
-    className="w-24 h-11 bg-[#b06000] hover:bg-[#914e00] rounded text-white flex flex-col items-center justify-center text-center font-bold text-[10px] uppercase tracking-wider shadow-sm transition-colors"
-  >
-    <span>Matched</span>
-    <span>Vehicle</span>
-    <span className="text-[8px] mt-0.5">Click to select</span>
-  </button>
-
-</div>
             {/* FROM AND TO */}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -592,7 +703,7 @@ setValue('vehicleNo', String(match.serialNo ?? ''));
                       ? 'border-red-500'
                       : 'border-gray-300 focus:border-amber-600'
                   }`}
-                  {...register('grossWeight')}
+                  {...register('grossWeight', { valueAsNumber: true })}
                 />
 
                 {errors.grossWeight && (
@@ -912,9 +1023,7 @@ setValue('vehicleNo', String(match.serialNo ?? ''));
                     </p>
 
                     <p className="text-[10px] text-gray-400 mt-1">
-                      {vehicleOptions.length === 0
-                        ? 'Vehicles will appear here after they are added in Vehicle Management.'
-                        : 'Try searching with another vehicle number.'}
+                      Try searching with another vehicle number.
                     </p>
                   </div>
                 )}

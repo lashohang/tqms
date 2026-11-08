@@ -1,9 +1,11 @@
 'use client';
 
 import React from 'react';
-
+import { useRouter } from 'next/navigation';
 
 export default function ChangePasswordPage() {
+  const router = useRouter();
+
   return (
     
     <div className="max-w-xl bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
@@ -29,7 +31,7 @@ export default function ChangePasswordPage() {
         </div>
 
         <div className="flex gap-3 pt-2">
-          <button type="submit" className="px-5 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-md text-sm font-medium transition">
+          <button type="submit" className="px-5 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-md text-sm font-medium transition" onClick={() => router.push('/admin/dashboard')}>
             Save
           </button>
           <button type="button" className="px-5 py-2 bg-slate-500 hover:bg-slate-600 text-white rounded-md text-sm font-medium transition">

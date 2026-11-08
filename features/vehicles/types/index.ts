@@ -1,2 +1,5 @@
 
-export type { VehicleFormInputs } from '../schemas/vehicleFormSchema';
+export type {
+  VehicleFormInputs,
+  VehicleFormData,
+} from '../schemas/vehicleFormSchema';

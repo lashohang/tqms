@@ -41,7 +41,7 @@ const queueSchema = z.object({
   vehicleNo: z.string().min(1, 'Vehicle is required'),
   from: z.string().min(1, 'From point is required'),
   to: z.string().min(1, 'To point is required'),
-  grossWeight: z.coerce.number().min(0, 'Weight cannot be negative'),
+  grossWeight: z.number().min(0, 'Weight cannot be negative'),
   entryDate: z.string().min(1, 'Entry date is required'),
   companyName: z.string().optional(),
   loadDetails: z.string().optional(),
@@ -49,7 +49,7 @@ const queueSchema = z.object({
   driversPhone: z.string().optional(),
 });
 
-type QueueFormInputs = z.infer<typeof queueSchema>;
+type QueueFormData = z.infer<typeof queueSchema>;
 
 const DEFAULT_NARRATION = 'Hello sir. How do you do?';
 const DEFAULT_ENTRY_DATE = '2083-07-21';
@@ -64,12 +64,12 @@ function QueueFormContent() {
   const [selectedFee, setSelectedFee] = useState('50');
 
   const {
-    register,
-    handleSubmit,
-    watch,
-    reset,
-    formState: { errors, isSubmitting },
-  } = useForm<QueueFormInputs>({
+  register,
+  handleSubmit,
+  watch,
+  reset,
+  formState: { errors, isSubmitting },
+} = useForm<QueueFormData>({
     resolver: zodResolver(queueSchema),
     defaultValues: {
       vehicleNo: '',
@@ -185,7 +185,7 @@ function QueueFormContent() {
   }, [editId, reset, router]);
 
   // SAVE QUEUE
-  const onQueueSubmit: SubmitHandler<QueueFormInputs> = (formData) => {
+  const onQueueSubmit: SubmitHandler<QueueFormData> = (formData) => {
     try {
       const saved = localStorage.getItem('tqms_live_queues');
 
@@ -218,10 +218,7 @@ function QueueFormContent() {
             ...item,
             ...formData,
             id: item.id,
-
-            // Keep the original serial number
             serialNo: item.serialNo,
-
             status: 'in_job',
             queueNo:
               item.queueNo ||
@@ -320,13 +317,15 @@ function QueueFormContent() {
         <div className="flex gap-1 mt-1 text-[10px] text-gray-400">
           <span
             className="text-amber-600 cursor-pointer hover:underline"
-            onClick={() => router.push('/admin/dashboard')}>
+            onClick={() => router.push('/admin/dashboard')}
+          >
             Dashboard
           </span>
           <span>&gt;</span>
           <span
             className="text-amber-600 cursor-pointer hover:underline"
-            onClick={() => router.push('/admin/queue')}>
+            onClick={() => router.push('/admin/queue')}
+          >
             Queue
           </span>
           <span>&gt;</span>
@@ -437,7 +436,7 @@ function QueueFormContent() {
                 type="number"
                 min="0"
                 step="any"
-                {...register('grossWeight')}
+                {...register('grossWeight', { valueAsNumber: true })}
                 className="w-full h-[29px] px-2 border border-gray-300 rounded text-[11px]"
               />
               {errors.grossWeight && (

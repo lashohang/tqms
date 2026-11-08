@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useEffect, Suspense, useState } from 'react';
@@ -11,13 +12,12 @@ import * as z from 'zod';
 // =========================================================================
 
 const checkpointSchema = z.object({
-  grossWeight: z.coerce
-    .number()
+  grossWeight: z.number()
     .min(1, 'Gross Weight (Kg) must be entered to process'),
-  kataFee: z.coerce.number().min(0, 'Fee must be a positive number'),
+  kataFee: z.number().min(0, 'Fee must be a positive number'),
 });
 
-type CheckpointFormInputs = z.infer<typeof checkpointSchema>;
+type CheckpointFormData = z.infer<typeof checkpointSchema>;
 
 // =========================================================================
 // QUEUE INTERFACE
@@ -25,11 +25,7 @@ type CheckpointFormInputs = z.infer<typeof checkpointSchema>;
 
 interface QueueItem {
   id: string | number;
-
-  // Sequential dashboard number: 1, 2, 3...
   serialNo?: number;
-
-  // Actual vehicle registration number
   vehicleNo: string;
   registeredVehicleNo?: string;
 
@@ -84,7 +80,7 @@ function CheckpointProcessingContent() {
     setValue,
     watch,
     formState: { errors, isSubmitting },
-  } = useForm<CheckpointFormInputs>({
+  } = useForm<CheckpointFormData>({
     resolver: zodResolver(checkpointSchema),
     defaultValues: {
       grossWeight: 0,
@@ -148,19 +144,16 @@ function CheckpointProcessingContent() {
 
       setQueueDetails(match);
 
-      // Display the sequential Vehicle No.
       setTargetVehicle(
         match.serialNo !== undefined && match.serialNo !== null
           ? String(match.serialNo)
           : '—'
       );
 
-      // Display the actual registration separately.
       setRegisteredVehicle(
         match.registeredVehicleNo || match.vehicleNo || '—'
       );
 
-      // Load existing values into the form.
       setValue('grossWeight', Number(match.grossWeight) || 0);
       setValue('kataFee', Number(match.feeAmount ?? 50));
     } catch (error) {
@@ -173,7 +166,7 @@ function CheckpointProcessingContent() {
   // SUBMIT CHECKPOINT PROCESSING
   // -----------------------------------------------------------------------
 
-  const onProcessSubmit: SubmitHandler<CheckpointFormInputs> = async (
+  const onProcessSubmit: SubmitHandler<CheckpointFormData> = async (
     formData
   ) => {
     if (!editId) {
@@ -200,7 +193,6 @@ function CheckpointProcessingContent() {
         return;
       }
 
-      // Keep an existing queue number, or generate a stable one.
       const stableQueueNo =
         existingItem.queueNo ||
         `Q-${String(existingItem.serialNo ?? existingItem.id)}`;
@@ -212,51 +204,32 @@ function CheckpointProcessingContent() {
 
         return {
           ...item,
-
-          // Preserve the original queue ID.
           id: existingItem.id,
-
-          // Preserve the sequential dashboard Vehicle No.
           serialNo: existingItem.serialNo,
-
-          // Preserve the actual vehicle registration.
           vehicleNo: existingItem.vehicleNo,
           registeredVehicleNo:
             existingItem.registeredVehicleNo || existingItem.vehicleNo,
 
-          // Save checkpoint information.
           grossWeight: formData.grossWeight,
           feeAmount: String(formData.kataFee),
 
-          // Mark this specific queue as processed.
           checkpointSaved: true,
-
-          // Preserve the existing status.
           status: 'in_job' as const,
-
-          // Preserve or generate the queue number.
           queueNo: stableQueueNo,
-
-          // Preserve the vehicle type.
           vehicleType: existingItem.vehicleType || '',
-
-          // Checkpoint name.
           checkpointEntry: 'Jhapa Checkpoint',
         };
       });
 
-      // Persist the updated queue list.
       localStorage.setItem(
         'tqms_live_queues',
         JSON.stringify(updatedList)
       );
 
-      // Notify any mounted dashboard listening for queue updates.
       window.dispatchEvent(new Event('queuesUpdated'));
 
       alert('Checkpoint processed successfully!');
 
-      // Open the receipt for this exact queue.
       router.push(
         `/admin/edit/receipt?id=${encodeURIComponent(String(editId))}`
       );
@@ -320,7 +293,7 @@ function CheckpointProcessingContent() {
                     ? 'border-red-500'
                     : 'border-gray-300'
                 }`}
-                {...register('grossWeight')}
+                {...register('grossWeight', { valueAsNumber: true })}
               />
 
               {errors.grossWeight && (
@@ -574,7 +547,7 @@ function CheckpointProcessingContent() {
                           ? 'border-red-500'
                           : 'border-gray-300'
                       }`}
-                      {...register('kataFee')}
+                      {...register('kataFee', { valueAsNumber: true })}
                     />
                   </div>
                 </div>

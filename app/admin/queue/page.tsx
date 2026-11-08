@@ -492,15 +492,19 @@ export default function AdminQueueDashboardPage() {
 
                   
 
-                  <p>
-                    <span className="text-gray-400 block text-[9px] uppercase">
-                      Last CheckPoint:
-                    </span>
-                    <span className="text-gray-700 text-[9px]">
-            {/* ✅ DYNAMIC FIELD HOOK BINDS DIRECTLY TO USER FORM DATA SELECTIONS */}
-            {item.checkpointEntry || '2026-11-07'}
-          </span>
-                  </p>
+               <p>
+  <span className="text-gray-400 block text-[9px] uppercase">
+    Last CheckPoint:
+  </span>
+
+  <span className="text-gray-700 text-[9px]">
+    {typeof item.checkpointEntry === 'string'
+      ? item.checkpointEntry
+      : item.checkpointEntry
+        ? `${item.checkpointEntry.date} ${item.checkpointEntry.time}`
+        : '—'}
+  </span>
+</p>
 
                  
 

@@ -14,8 +14,11 @@ interface NarrationLog {
 
 interface VehicleLog {
   id: number;
-  vehicleNo: string;
-  vehicleType?: string;
+  plateNo: string;
+  lotNo: string;
+  vehicleNumber: string;
+  vehicleType: string;
+  plateType?: string;
 }
 
 interface QueueRecord {
@@ -41,7 +44,7 @@ const queueSchema = z.object({
   vehicleNo: z.string().min(1, 'Vehicle is required'),
   from: z.string().min(1, 'From point is required'),
   to: z.string().min(1, 'To point is required'),
-  grossWeight: z.coerce.number().min(0, 'Weight cannot be negative'),
+  grossWeight: z.number().min(0, 'Weight cannot be negative'),
   entryDate: z.string().min(1, 'Entry date is required'),
   companyName: z.string().optional(),
   loadDetails: z.string().optional(),
@@ -49,10 +52,34 @@ const queueSchema = z.object({
   driversPhone: z.string().optional(),
 });
 
-type QueueFormInputs = z.infer<typeof queueSchema>;
+type QueueFormData = z.infer<typeof queueSchema>;
 
 const DEFAULT_NARRATION = 'Hello sir. How do you do?';
 const DEFAULT_ENTRY_DATE = '2083-07-21';
+
+const DEFAULT_VEHICLES: VehicleLog[] = [
+  {
+    id: 1,
+    plateNo: 'BA-7-KHA-6666',
+    lotNo: '96',
+    vehicleNumber: '6666',
+    vehicleType: 'Truck 12 Wheeler 21 Ton',
+  },
+  {
+    id: 2,
+    plateNo: 'BA-7-KHA-5554',
+    lotNo: '96',
+    vehicleNumber: '5554',
+    vehicleType: 'Container 10 Wheeler 17 Ton',
+  },
+  {
+    id: 3,
+    plateNo: 'BA-7-KHA-3434',
+    lotNo: '96',
+    vehicleNumber: '3434',
+    vehicleType: 'Mini Truck',
+  },
+];
 
 function QueueFormContent() {
   const router = useRouter();
@@ -64,33 +91,34 @@ function QueueFormContent() {
   const [selectedFee, setSelectedFee] = useState('50');
 
   const {
-    register,
-    handleSubmit,
-    watch,
-    reset,
-    formState: { errors, isSubmitting },
-  } = useForm<QueueFormInputs>({
-    resolver: zodResolver(queueSchema),
-    defaultValues: {
-      vehicleNo: '',
-      from: '',
-      to: '',
-      grossWeight: 0,
-      entryDate: DEFAULT_ENTRY_DATE,
-      companyName: '',
-      loadDetails: '',
-      narration: DEFAULT_NARRATION,
-      driversPhone: '',
-    },
-  });
+  register,
+  handleSubmit,
+  watch,
+  reset,
+  formState: { errors, isSubmitting },
+} = useForm<QueueFormData>({
+  resolver: zodResolver(queueSchema),
+  defaultValues: {
+    vehicleNo: '',
+    from: '',
+    to: '',
+    grossWeight: 0,
+    entryDate: DEFAULT_ENTRY_DATE,
+    companyName: '',
+    loadDetails: '',
+    narration: DEFAULT_NARRATION,
+    driversPhone: '',
+  },
+});
 
-  // LOAD VEHICLES AND NARRATIONS
+  // LOAD DEFAULT VEHICLES AND NARRATIONS
   useEffect(() => {
     try {
       const savedNarrations = localStorage.getItem('tqms_narrations');
 
       if (savedNarrations) {
-        setNarrationOptions(JSON.parse(savedNarrations));
+        const parsed = JSON.parse(savedNarrations);
+        setNarrationOptions(Array.isArray(parsed) ? parsed : []);
       } else {
         const defaults = [
           { id: 1, narrationText: DEFAULT_NARRATION },
@@ -100,32 +128,8 @@ function QueueFormContent() {
         setNarrationOptions(defaults);
       }
 
-      const savedVehicles = localStorage.getItem('tqms_vehicles');
-
-      if (savedVehicles) {
-        setVehicleOptions(JSON.parse(savedVehicles));
-      } else {
-        const defaults = [
-          {
-            id: 1,
-            vehicleNo: 'BA-7-KHA-6666',
-            vehicleType: 'Truck 12 Wheeler 21 Ton',
-          },
-          {
-            id: 2,
-            vehicleNo: '5554',
-            vehicleType: 'Container 10 Wheeler 17 Ton',
-          },
-          {
-            id: 3,
-            vehicleNo: '3434',
-            vehicleType: 'Mini Truck',
-          },
-        ];
-
-        localStorage.setItem('tqms_vehicles', JSON.stringify(defaults));
-        setVehicleOptions(defaults);
-      }
+      // Display default vehicles
+      setVehicleOptions(DEFAULT_VEHICLES);
     } catch (error) {
       console.error('Error loading queue form options:', error);
     }
@@ -140,7 +144,7 @@ function QueueFormContent() {
   const selectedVehicleDetails = useMemo(() => {
     return (
       vehicleOptions.find(
-        (vehicle) => vehicle.vehicleNo === watchedVehicleNo
+        (vehicle) => vehicle.plateNo === watchedVehicleNo
       ) || null
     );
   }, [watchedVehicleNo, vehicleOptions]);
@@ -185,7 +189,7 @@ function QueueFormContent() {
   }, [editId, reset, router]);
 
   // SAVE QUEUE
-  const onQueueSubmit: SubmitHandler<QueueFormInputs> = (formData) => {
+  const onQueueSubmit: SubmitHandler<QueueFormData> = (formData) => {
     try {
       const saved = localStorage.getItem('tqms_live_queues');
 
@@ -194,8 +198,7 @@ function QueueFormContent() {
         : [];
 
       if (editId) {
-        // WEIGHT IS REQUIRED BEFORE MOVING TO IN JOB
-        if (Number(formData.grossWeight) <= 0) {
+        if (formData.grossWeight <= 0) {
           alert('Please enter a valid gross weight before saving.');
           return;
         }
@@ -218,11 +221,8 @@ function QueueFormContent() {
             ...item,
             ...formData,
             id: item.id,
-
-            // Keep the original serial number
             serialNo: item.serialNo,
-
-            status: 'in_job',
+            status: 'in_job' as const,
             queueNo:
               item.queueNo ||
               String(Math.floor(100000 + Math.random() * 900000)),
@@ -234,7 +234,6 @@ function QueueFormContent() {
           };
         });
       } else {
-        // ASSIGN NUMBERS TO EXISTING RECORDS WITHOUT SERIAL NUMBERS
         const usedSerialNumbers = new Set<number>();
 
         currentList = currentList.map((item) => {
@@ -263,7 +262,6 @@ function QueueFormContent() {
           };
         });
 
-        // FIND THE HIGHEST EXISTING SERIAL NUMBER
         const highestExistingSerial = currentList.reduce(
           (max, item) => Math.max(max, Number(item.serialNo) || 0),
           0
@@ -276,7 +274,6 @@ function QueueFormContent() {
         const nextSerialNo =
           Math.max(savedCounter, highestExistingSerial) + 1;
 
-        // CREATE NEW PENDING QUEUE
         const newItem: QueueRecord = {
           id: String(Date.now()),
           ...formData,
@@ -320,13 +317,15 @@ function QueueFormContent() {
         <div className="flex gap-1 mt-1 text-[10px] text-gray-400">
           <span
             className="text-amber-600 cursor-pointer hover:underline"
-            onClick={() => router.push('/admin/dashboard')}>
+            onClick={() => router.push('/admin/dashboard')}
+          >
             Dashboard
           </span>
           <span>&gt;</span>
           <span
             className="text-amber-600 cursor-pointer hover:underline"
-            onClick={() => router.push('/admin/queue')}>
+            onClick={() => router.push('/admin/queue')}
+          >
             Queue
           </span>
           <span>&gt;</span>
@@ -367,13 +366,17 @@ function QueueFormContent() {
               <select
                 {...register('vehicleNo')}
                 disabled={!!editId}
-                className="w-full h-[29px] px-2 border border-gray-300 rounded text-[11px] bg-white disabled:bg-gray-100"
+                className="w-full h-[29px] px-2 border border-gray-300 rounded text-[11px] text-gray-800 bg-white disabled:bg-gray-100 disabled:text-gray-500"
               >
                 <option value="">Select a vehicle</option>
 
                 {vehicleOptions.map((vehicle) => (
-                  <option key={vehicle.id} value={vehicle.vehicleNo}>
-                    {vehicle.vehicleNo}
+                  <option
+                    key={vehicle.id}
+                    value={vehicle.plateNo}
+                    className="text-gray-800 bg-white"
+                  >
+                    {vehicle.plateNo}
                   </option>
                 ))}
               </select>
@@ -391,6 +394,7 @@ function QueueFormContent() {
                 <label className="text-xs font-bold text-gray-700">
                   From*
                 </label>
+
                 <select
                   className="w-full px-3 py-1.5 border border-gray-300 rounded text-xs bg-white focus:border-amber-600 outline-none text-gray-700"
                   {...register('from')}
@@ -400,6 +404,7 @@ function QueueFormContent() {
                   <option value="Phungling">Phungling</option>
                   <option value="Maiwakhola">Maiwakhola</option>
                 </select>
+
                 {errors.from && (
                   <span className="text-red-500 text-[10px]">
                     {errors.from.message}
@@ -411,6 +416,7 @@ function QueueFormContent() {
                 <label className="text-xs font-bold text-gray-700">
                   To*
                 </label>
+
                 <select
                   className="w-full px-3 py-1.5 border border-gray-300 rounded text-xs bg-white focus:border-amber-600 outline-none text-gray-700"
                   {...register('to')}
@@ -420,6 +426,7 @@ function QueueFormContent() {
                   <option value="Sidingba">Sidingba</option>
                   <option value="Meringden">Meringden</option>
                 </select>
+
                 {errors.to && (
                   <span className="text-red-500 text-[10px]">
                     {errors.to.message}
@@ -433,13 +440,15 @@ function QueueFormContent() {
               <label className="text-[11px]">
                 Gross Weight (Kg)*
               </label>
+
               <input
                 type="number"
                 min="0"
                 step="any"
-                {...register('grossWeight')}
+                {...register('grossWeight', { valueAsNumber: true })}
                 className="w-full h-[29px] px-2 border border-gray-300 rounded text-[11px]"
               />
+
               {errors.grossWeight && (
                 <span className="text-red-500 text-[10px]">
                   {errors.grossWeight.message}
@@ -451,6 +460,7 @@ function QueueFormContent() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-[18px]">
               <div className="flex flex-col gap-1">
                 <label className="text-[11px]">Entry Date</label>
+
                 <input
                   readOnly
                   {...register('entryDate')}
@@ -462,6 +472,7 @@ function QueueFormContent() {
                 <label className="text-[11px]">
                   Transport Company Name
                 </label>
+
                 <input
                   {...register('companyName')}
                   className="w-full h-[29px] px-2 border border-gray-300 rounded text-[11px]"
@@ -472,13 +483,14 @@ function QueueFormContent() {
             {/* LOAD DETAILS */}
             <div className="w-full sm:w-1/2 flex flex-col gap-1">
               <label className="text-[11px]">Load Details*</label>
+
               <input
                 {...register('loadDetails')}
                 className="w-full h-[29px] px-2 border border-gray-300 rounded text-[11px]"
               />
             </div>
 
-            {/* NARRATION */}
+           
             <div className="flex flex-col gap-1">
               <label className="text-[11px]">Narration*</label>
 
@@ -500,9 +512,10 @@ function QueueFormContent() {
               )}
             </div>
 
-            {/* DRIVER PHONE */}
+           
             <div className="flex flex-col gap-1">
               <label className="text-[11px]">Driver's Phone</label>
+
               <input
                 type="tel"
                 {...register('driversPhone')}
@@ -510,7 +523,7 @@ function QueueFormContent() {
               />
             </div>
 
-            {/* VEHICLE STATUS */}
+           
             <div className="pt-2 space-y-1 text-[11px] text-gray-500">
               <h4 className="font-semibold text-gray-800">
                 Vehicle Status
@@ -558,7 +571,9 @@ function QueueFormContent() {
                 <h2 className="font-bold text-sm">
                   नेपाल ट्रक यातायात व्यवसायी महासंघ
                 </h2>
+
                 <p className="text-xs mt-1">Loadboard sthaniya</p>
+
                 <p className="text-[10px] mt-1">
                   फोन नं: 01-9863333, 013-5555555
                 </p>
@@ -620,6 +635,7 @@ function QueueFormContent() {
                       <th className="text-left p-2 font-semibold">
                         विवरण
                       </th>
+
                       <th className="text-left p-2 font-semibold">
                         रकम (रू.)
                       </th>
@@ -629,6 +645,7 @@ function QueueFormContent() {
                   <tbody>
                     <tr className="border border-gray-200">
                       <td className="p-2">काटा शुल्क</td>
+
                       <td className="p-2">
                         <select
                           value={selectedFee}
@@ -645,6 +662,7 @@ function QueueFormContent() {
 
                     <tr className="border border-gray-200">
                       <td className="p-2 font-bold">जम्मा शुल्क</td>
+
                       <td className="p-2 font-bold">
                         {Number(selectedFee).toFixed(2)}
                       </td>
@@ -661,7 +679,7 @@ function QueueFormContent() {
   );
 }
 
-// MAIN PAGE WITH SUSPENSE
+
 export default function AdminCreateQueuePage() {
   return (
     <Suspense

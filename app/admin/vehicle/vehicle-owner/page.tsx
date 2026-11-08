@@ -91,7 +91,7 @@ export default function AdminVehicleOwnerPage() {
   };
 
   const handleView = (owner: VehicleOwner) => {
-    router.push(`/admin/vehicle/view?id=${owner.id}`);
+    router.push(`/admin/vehicle/vehicle-owner/view?id=${owner.id}`);
   };
 
   return (
@@ -107,7 +107,7 @@ export default function AdminVehicleOwnerPage() {
           <div className="text-[10px] text-gray-400 font-medium flex items-center gap-1 mt-0.5">
             <span
               className="text-amber-600 cursor-pointer hover:underline"
-              onClick={() => router.push('/admin/home')}
+              onClick={() => router.push('/admin/dashboard')}
             >
               Home
             </span>

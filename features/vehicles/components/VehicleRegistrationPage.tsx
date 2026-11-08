@@ -1,1016 +1,600 @@
 
 'use client';
 
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import {
-  useForm,
-  SubmitHandler,
-} from 'react-hook-form';
+import { useForm, SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
 
-// ============================================================
-// IMAGE PREVIEW COMPONENT
-// ============================================================
+import {
+  vehicleFormSchema,
+  VehicleFormInputs,
+  VehicleFormData,
+} from '../schemas/vehicleFormSchema';
 
-const ImagePreview = ({
-  file,
-  title,
-}: {
-  file: File | null;
-  title: string;
-}) => {
-  const [preview, setPreview] = useState('');
+import { VEHICLE_TYPES, PROVINCES } from '../constants/vehicleOptions';
 
-  useEffect(() => {
-    if (!file) {
-      setPreview('');
-      return;
-    }
+import EmbossedPlateForm from './EmbossedPlateForm';
+import ProvincialPlateForm from './ProvincialPlateForm';
 
-    const imageUrl = URL.createObjectURL(file);
-    setPreview(imageUrl);
-
-    return () => URL.revokeObjectURL(imageUrl);
-  }, [file]);
-
-  if (!file) return null;
-
-  return (
-    <div className="mt-3 space-y-2">
-      <h4 className="text-xs font-bold text-gray-600">
-        {title}
-      </h4>
-
-      {preview && (
-        <img
-          src={preview}
-          alt={title}
-          className="w-32 h-28 object-contain border border-gray-300 rounded-md bg-white p-1"
-        />
-      )}
-
-      <p className="text-[10px] text-gray-500">
-        {file.name}
-      </p>
-    </div>
-  );
-};
-
-// ============================================================
-// CUSTOM FILE INPUT COMPONENT
-// ============================================================
-
-const CustomFileInput = ({
-  label,
-  onChange,
-}: {
-  label: string;
-  onChange: (file: File | null) => void;
-}) => {
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-
-  const handleChange = (
-    event: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const file = event.target.files?.[0] || null;
-
-    setSelectedFile(file);
-    onChange(file);
-  };
-
-  return (
-    <div className="flex flex-col gap-2">
-      <input
-        type="file"
-        accept="image/*"
-        aria-label={label}
-        onChange={handleChange}
-        className="w-full px-3 py-1.5 border border-gray-300 rounded text-xs"
-      />
-
-      {selectedFile && (
-        <span className="text-[10px] text-gray-500">
-          Selected: {selectedFile.name}
-        </span>
-      )}
-    </div>
-  );
-};
-
-// ============================================================
-// NEPAL GEOGRAPHY MAP
-// ============================================================
-
-const NEPAL_GEOGRAPHY_MAP: Record<string, string[]> = {
-  'Koshi Province': [
-    'Bhojpur',
-    'Dhankuta',
-    'Ilam',
-    'Jhapa',
-    'Khotang',
-    'Morang',
-    'Okhaldhunga',
-    'Panchthar',
-    'Sankhuwasabha',
-    'Solukhumbu',
-    'Sunsari',
-    'Taplejung',
-    'Terhathum',
-    'Udayapur',
-  ],
-
-  'Madhesh Province': [
-    'Bara',
-    'Dhanusha',
-    'Mahottari',
-    'Parsa',
-    'Rautahat',
-    'Saptari',
-    'Sarlahi',
-    'Siraha',
-  ],
-
-  'Bagmati Province': [
-    'Bhaktapur',
-    'Chitwan',
-    'Dhading',
-    'Dolakha',
-    'Kathmandu',
-    'Kavrepalanchok',
-    'Lalitpur',
-    'Makwanpur',
-    'Nuwakot',
-    'Ramechhap',
-    'Rasuwa',
-    'Sindhuli',
-    'Sindhupalchok',
-  ],
-
-  'Gandaki Province': [
-    'Baglung',
-    'Gorkha',
-    'Kaski',
-    'Lamjung',
-    'Manang',
-    'Mustang',
-    'Myagdi',
-    'Nawalpur',
-    'Parbat',
-    'Syangja',
-    'Tanahun',
-  ],
-
-  'Lumbini Province': [
-    'Arghakhanchi',
-    'Banke',
-    'Bardiya',
-    'Dang',
-    'Gulmi',
-    'Kapilvastu',
-    'Parasi',
-    'Palpa',
-    'Pyuthan',
-    'Rolpa',
-    'Rukum East',
-    'Rupandehi',
-  ],
-
-  'Karnali Province': [
-    'Dailekh',
-    'Dolpa',
-    'Humla',
-    'Jajarkot',
-    'Jumla',
-    'Kalikot',
-    'Mugu',
-    'Salyan',
-    'Surkhet',
-    'Rukum West',
-  ],
-
-  'Sudurpashchim Province': [
-    'Achham',
-    'Baitadi',
-    'Bajhang',
-    'Bajura',
-    'Dadeldhura',
-    'Darchula',
-    'Doti',
-    'Kailali',
-    'Kanchanpur',
-  ],
-};
-
-// ============================================================
-// FORM SCHEMA
-// ============================================================
-
-const ownerSchema = z.object({
-  name: z.string().min(1, 'Name is required'),
-
-  state: z.string().min(1, 'State selection is required'),
-
-  district: z.string().min(1, 'District selection is required'),
-
-  localLevel: z.string().optional(),
-
-  streetAddress: z.string().optional(),
-
-  email: z
-    .string()
-    .email('Invalid email address format')
-    .or(z.literal('')),
-
-  panNumber: z.string().optional(),
-
-  phoneNo: z
-    .string()
-    .min(10, 'Phone Number must be at least 10 digits'),
-
-  isIndividual: z.boolean().default(true),
-
-  citizenshipNo: z.string().optional(),
-
-  registrationNo: z.string().optional(),
-
-  contactName: z.string().optional(),
-
-  contactEmail: z.string().optional(),
-
-  contactNumber: z.string().optional(),
-});
-
-type OwnerFormInputs = z.infer<typeof ownerSchema>;
-
-// ============================================================
-// VEHICLE OWNER TYPE
-// ============================================================
-
-interface VehicleOwner {
+interface OwnerOption {
   id: number;
   name: string;
-  email: string;
-  address: string;
-  phoneNo: string;
-  isAssigned: 'Assigned' | 'Not Assi';
-
-  state?: string;
-  district?: string;
-  localLevel?: string;
-  streetAddress?: string;
-  panNumber?: string;
-
-  isIndividual?: boolean;
-
-  citizenshipNo?: string;
-  registrationNo?: string;
-
-  contactName?: string;
-  contactEmail?: string;
-  contactNumber?: string;
 }
 
-// ============================================================
-// MAIN VEHICLE OWNER PAGE
-// ============================================================
+interface VehicleRecord {
+  id: number;
+  plateNo: string;
+  lotNo: string;
+  vehicleNumber: string;
+  vehicleType: string;
+
+  plateVehicleType?: string;
+  sthaniyasangh?: string;
+  vehicleOwner?: string;
+  plateColor?: string;
+  plateType?: string;
+
+  state?: string;
+  registeredOffice?: string;
+  symbolNo?: string;
+  embossedVAIC?: string;
+  embossedVehicleNumber?: string;
+  provincialVehicleNumber?: string;
+
+  engineNumber?: string;
+  chassisNumber?: string;
+  companyName?: string;
+  modelNo?: string;
+
+  [key: string]: any;
+}
 
 export default function VehicleRegistrationPage() {
   const router = useRouter();
 
-  // ----------------------------------------------------------
-  // FILE STATES
-  // ----------------------------------------------------------
+  const [ownerOptions, setOwnerOptions] = useState<OwnerOption[]>([]);
+  const [editId, setEditId] = useState<string | null>(null);
 
-  const [citizenshipFront, setCitizenshipFront] =
-    useState<File | null>(null);
+  // Load vehicle owners
+  useEffect(() => {
+    const savedOwners = localStorage.getItem('tqms_vehicle_owners');
 
-  const [citizenshipBack, setCitizenshipBack] =
-    useState<File | null>(null);
+    if (savedOwners) {
+      try {
+        const parsed = JSON.parse(savedOwners);
+        setOwnerOptions(Array.isArray(parsed) ? parsed : []);
+      } catch {
+        setOwnerOptions([]);
+      }
+    } else {
+      setOwnerOptions([]);
+    }
+  }, []);
 
-  const [registrationDocument, setRegistrationDocument] =
-    useState<File | null>(null);
-
-  const [companyLogo, setCompanyLogo] =
-    useState<File | null>(null);
-
-  // ----------------------------------------------------------
-  // FORM CONFIGURATION
-  // ----------------------------------------------------------
-
+  // React Hook Form
   const {
     register,
     handleSubmit,
-    watch,
-    setValue,
     reset,
-    formState: {
-      errors,
-      isSubmitting,
-    },
-  } = useForm<OwnerFormInputs>({
-    resolver: zodResolver(ownerSchema),
-
+    watch,
+    formState: { errors, isSubmitting },
+  } = useForm<VehicleFormInputs, any, VehicleFormData>({
+    resolver: zodResolver(vehicleFormSchema),
     defaultValues: {
-      name: '',
+      sthaniyasangh: '',
+      vehicleOwner: '',
+      vehicleType: '',
+      plateColor: '',
+      engineNumber: '',
+      chassisNumber: '',
+      companyName: '',
+      modelNo: '',
+      plateType: '',
+
       state: '',
-      district: '',
-      localLevel: '',
-      streetAddress: '',
-      email: '',
-      panNumber: '',
-      phoneNo: '',
-      isIndividual: true,
-      citizenshipNo: '',
-      registrationNo: '',
-      contactName: '',
-      contactEmail: '',
-      contactNumber: '',
+      plateVehicleType: '',
+      embossedVAIC: '',
+      embossedVehicleNumber: '',
+
+      registeredOffice: '',
+      lotNumber: '',
+      symbolNo: '',
+      provincialVehicleNumber: '',
     },
   });
 
-  // ----------------------------------------------------------
-  // WATCHED VALUES
-  // ----------------------------------------------------------
+  const watchedPlateType = watch('plateType');
 
-  const watchedProvince = watch('state');
+  // Load existing vehicle details when editing
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const selectedEditId = params.get('editId');
 
-  const watchedIsIndividual = watch('isIndividual');
+    setEditId(selectedEditId);
 
-  // ----------------------------------------------------------
-  // DISTRICT FILTERING
-  // ----------------------------------------------------------
+    if (!selectedEditId) {
+      return;
+    }
 
-  const availableDistricts = useMemo(() => {
-    if (!watchedProvince) return [];
-
-    return NEPAL_GEOGRAPHY_MAP[watchedProvince] || [];
-  }, [watchedProvince]);
-
-  // ----------------------------------------------------------
-  // SAVE VEHICLE OWNER
-  // ----------------------------------------------------------
-
-  const onFormSubmit: SubmitHandler<OwnerFormInputs> = async (
-    formData
-  ) => {
     try {
-      const savedRaw = localStorage.getItem(
-        'tqms_vehicle_owners'
+      const savedRaw = localStorage.getItem('tqms_vehicles_list');
+      const parsed: VehicleRecord[] = savedRaw ? JSON.parse(savedRaw) : [];
+
+      const currentList = Array.isArray(parsed) ? parsed : [];
+
+      const selectedVehicle = currentList.find(
+        (vehicle) => String(vehicle.id) === selectedEditId
       );
 
-      let currentList: VehicleOwner[] = [];
-
-      if (savedRaw) {
-        const parsed = JSON.parse(savedRaw);
-
-        if (Array.isArray(parsed)) {
-          currentList = parsed;
-        }
+      if (!selectedVehicle) {
+        alert('Vehicle record not found.');
+        router.push('/admin/vehicle/vehicles');
+        return;
       }
 
-      const nextId =
-        currentList.length > 0
-          ? Math.max(
-              ...currentList.map((u) => Number(u.id) || 0)
-            ) + 1
-          : 1;
+      // Populate form with existing vehicle details
+      reset({
+        sthaniyasangh: selectedVehicle.sthaniyasangh || '',
+        vehicleOwner: selectedVehicle.vehicleOwner || '',
+        vehicleType: selectedVehicle.vehicleType || '',
+        plateColor: selectedVehicle.plateColor || '',
 
-      const newOwner: VehicleOwner = {
-        id: nextId,
+        engineNumber: selectedVehicle.engineNumber || '',
+        chassisNumber: selectedVehicle.chassisNumber || '',
+        companyName: selectedVehicle.companyName || '',
+        modelNo: selectedVehicle.modelNo || '',
 
-        name: formData.name,
+        plateType: selectedVehicle.plateType || '',
 
-        email: formData.email || '',
+        state: selectedVehicle.state || '',
+        plateVehicleType: selectedVehicle.plateVehicleType || '',
 
-        address: [
-          formData.state,
-          formData.district,
-          formData.localLevel,
-          formData.streetAddress,
-        ]
-          .filter(Boolean)
-          .join(', '),
+        embossedVAIC: selectedVehicle.embossedVAIC || '',
+        embossedVehicleNumber:
+          selectedVehicle.embossedVehicleNumber || '',
 
-        phoneNo: formData.phoneNo,
+        registeredOffice: selectedVehicle.registeredOffice || '',
 
-        isAssigned: 'Not Assi',
+        lotNumber:
+          selectedVehicle.lotNumber ||
+          selectedVehicle.lotNo ||
+          '',
 
-        state: formData.state,
+        symbolNo: selectedVehicle.symbolNo || '',
 
-        district: formData.district,
-
-        localLevel: formData.localLevel || '',
-
-        streetAddress: formData.streetAddress || '',
-
-        panNumber: formData.panNumber || '',
-
-        isIndividual: formData.isIndividual,
-
-        citizenshipNo: formData.citizenshipNo || '',
-
-        registrationNo: formData.registrationNo || '',
-
-        contactName: formData.contactName || '',
-
-        contactEmail: formData.contactEmail || '',
-
-        contactNumber: formData.contactNumber || '',
-      };
-
-      localStorage.setItem(
-        'tqms_vehicle_owners',
-        JSON.stringify([...currentList, newOwner])
-      );
-
-      reset();
-
-      setCitizenshipFront(null);
-      setCitizenshipBack(null);
-      setRegistrationDocument(null);
-      setCompanyLogo(null);
-
-      router.push('/admin/vehicle/vehicle-owner');
-
+        provincialVehicleNumber:
+          selectedVehicle.provincialVehicleNumber || '',
+      });
     } catch (error) {
-      console.error('Error saving vehicle owner:', error);
-
-      alert(
-        'Unable to save vehicle owner. Please try again.'
-      );
+      console.error('Error loading vehicle details:', error);
+      alert('Unable to load vehicle details.');
+      router.push('/admin/vehicle/vehicles');
     }
+  }, [reset, router]);
+
+  // Generate formatted plate number
+  const getFormattedNumber = (data: VehicleFormData): string => {
+    const province = PROVINCES.find(
+      (p) => p.value === data.state
+    );
+
+    if (data.plateType === 'Provincial') {
+      return `${province?.short || ''}-${data.registeredOffice || ''}-${data.lotNumber || ''}-${data.symbolNo || ''}-${data.provincialVehicleNumber || ''}`;
+    }
+
+    if (data.plateType === 'Embossed') {
+      return `State-${province?.code || ''}-${data.embossedVehicleNumber || ''}`;
+    }
+
+    return `BA-96-GHA-${data.modelNo || '1010'}`;
   };
 
-  // ==========================================================
-  // PAGE JSX
-  // ==========================================================
+  // Save new vehicle or update existing vehicle
+  const onVehicleFormSubmit: SubmitHandler<VehicleFormData> = async (data) => {
+    await new Promise((resolve) => setTimeout(resolve, 250));
+
+    const savedRaw = localStorage.getItem('tqms_vehicles_list');
+
+    let currentList: VehicleRecord[] = [];
+
+    try {
+      const parsed = savedRaw ? JSON.parse(savedRaw) : [];
+      currentList = Array.isArray(parsed) ? parsed : [];
+    } catch {
+      currentList = [];
+    }
+
+    const formattedNumber = getFormattedNumber(data);
+
+    // Find existing vehicle when editing
+    const existingVehicle = editId
+      ? currentList.find(
+          (vehicle) => String(vehicle.id) === editId
+        )
+      : undefined;
+
+    if (editId && !existingVehicle) {
+      alert('Vehicle record not found. Please return to the vehicle list.');
+      router.push('/admin/vehicle/vehicles');
+      return;
+    }
+
+    // Generate ID only when creating a new vehicle
+    const nextId =
+      currentList.length > 0
+        ? Math.max(
+            ...currentList.map((vehicle) => Number(vehicle.id) || 0)
+          ) + 1
+        : 1;
+
+    const vehicleRecord: VehicleRecord = {
+      // Preserve existing data when updating
+      ...(existingVehicle || {}),
+
+      id: editId ? Number(editId) : nextId,
+
+      plateNo: formattedNumber,
+
+      // Embossed vehicles do not have a Lot Number
+      lotNo:
+        data.plateType === 'Embossed'
+          ? ''
+          : data.lotNumber ||
+            (data.modelNo
+              ? String(data.modelNo).slice(0, 2)
+              : '96'),
+
+      vehicleNumber:
+        data.provincialVehicleNumber ||
+        data.embossedVehicleNumber ||
+        data.modelNo ||
+        '1010',
+
+      vehicleType: data.vehicleType,
+      plateVehicleType: data.plateVehicleType || '',
+
+      sthaniyasangh: data.sthaniyasangh,
+      vehicleOwner: data.vehicleOwner,
+      plateColor: data.plateColor,
+      plateType: data.plateType,
+
+      state: data.state || '',
+      registeredOffice: data.registeredOffice || '',
+      symbolNo: data.symbolNo || '',
+
+      embossedVAIC: data.embossedVAIC || '',
+      embossedVehicleNumber: data.embossedVehicleNumber || '',
+
+      provincialVehicleNumber:
+        data.provincialVehicleNumber || '',
+
+      engineNumber: data.engineNumber || '',
+      chassisNumber: data.chassisNumber || '',
+      companyName: data.companyName || '',
+      modelNo: data.modelNo || '',
+    };
+
+    let updatedList: VehicleRecord[];
+
+    if (editId) {
+      // UPDATE: Replace existing vehicle instead of adding a duplicate
+      updatedList = currentList.map((vehicle) =>
+        String(vehicle.id) === editId
+          ? vehicleRecord
+          : vehicle
+      );
+    } else {
+      // CREATE: Add new vehicle
+      updatedList = [...currentList, vehicleRecord];
+    }
+
+    localStorage.setItem(
+      'tqms_vehicles_list',
+      JSON.stringify(updatedList)
+    );
+
+    reset();
+
+    router.push('/admin/vehicle/vehicles');
+  };
 
   return (
-    <div className="max-w-7xl mx-auto pb-12 animate-in fade-in duration-200 text-gray-700 font-sans antialiased">
+    <div className="max-w-7xl mx-auto space-y-4 p-2 animate-in fade-in duration-200 text-gray-700 font-sans">
 
-      <form
-        onSubmit={handleSubmit(onFormSubmit)}
-        className="space-y-8 bg-white border border-gray-100 rounded-md p-6 md:p-10 shadow-sm"
-      >
+      {/* Breadcrumb Navigation */}
+      <div className="text-[10px] text-gray-400 font-semibold flex items-center gap-1 select-none">
 
-        {/* ==================================================
-            SUBSECTION 1: VEHICLE OWNER DETAILS
-        ================================================== */}
+        <span
+          className="text-amber-600 cursor-pointer hover:underline"
+          onClick={() => router.push('/admin/vehicle/vehicles')}
+        >
+          Home
+        </span>
 
-        <div className="space-y-4">
+        <span>&gt;</span>
 
-          <h3 className="text-xs font-bold text-gray-800 uppercase tracking-wider border-b border-gray-100 pb-2 select-none">
-            Enter Vehicle Owner Details
-          </h3>
+        <span
+          className="text-amber-600 cursor-pointer hover:underline"
+          onClick={() => router.push('/admin/vehicle/vehicles')}
+        >
+          Vehicle
+        </span>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+        <span>&gt;</span>
 
-            {/* NAME */}
+        <span className="text-gray-400 font-normal">
+          {editId ? 'Edit' : 'New'}
+        </span>
+      </div>
 
-            <div className="flex flex-col gap-1.5">
+      {/* Main Form */}
+      <div className="bg-white rounded border border-gray-100 shadow-sm p-6 md:p-8 space-y-6">
 
-              <label className="text-xs font-bold text-gray-600">
-                Name*
-              </label>
+        <div>
+          <h2 className="text-base font-bold text-gray-900 tracking-tight select-none">
+            {editId ? 'Edit Vehicle' : 'Vehicle'}
+          </h2>
+        </div>
 
-              <input
-                type="text"
-                placeholder="Enter Name"
-                className={`w-full px-3 py-1.5 border rounded text-xs outline-none focus:border-amber-600 ${
-                  errors.name
-                    ? 'border-red-500'
-                    : 'border-gray-300'
-                }`}
-                {...register('name')}
-              />
+        <form
+          onSubmit={handleSubmit(onVehicleFormSubmit)}
+          className="space-y-5"
+        >
 
-              {errors.name && (
-                <span className="text-[11px] text-red-500 font-medium">
-                  {errors.name.message}
-                </span>
-              )}
+          {/* Sthaniyasangh */}
+          <div className="flex flex-col gap-1.5 max-w-xs">
+            <label className="text-xs font-bold text-gray-600">
+              Sthaniyasangh*
+            </label>
 
-            </div>
+            <input
+              type="text"
+              className={`w-full px-3 py-1.5 border rounded text-xs outline-none focus:border-amber-600 transition ${
+                errors.sthaniyasangh
+                  ? 'border-red-500'
+                  : 'border-gray-300'
+              }`}
+              {...register('sthaniyasangh')}
+            />
 
-            {/* COMPANY LOGO */}
-
-            {!watchedIsIndividual && (
-              <div className="flex flex-col gap-1.5">
-
-                <label className="text-xs font-bold text-gray-600">
-                  Logo*
-                </label>
-
-                <div className="cursor-pointer bg-white border border-gray-300 text-gray-700 text-sm rounded-md focus:ring-blue-500 focus:border-blue-500 block w-full shadow-sm file:cursor-pointer file:bg-gray-300 file:text-gray-800 file:border-0 file:mr-3 file:px-4 file:py-2 hover:file:bg-gray-400">
-
-                  <CustomFileInput
-                    label="Logo"
-                    onChange={(file) => setCompanyLogo(file)}
-                  />
-
-                </div>
-
-                {companyLogo && (
-                  <span className="text-[10px] text-gray-500">
-                    Selected: {companyLogo.name}
-                  </span>
-                )}
-
-                <ImagePreview
-                  file={companyLogo}
-                  title="Logo Preview"
-                />
-
-              </div>
+            {errors.sthaniyasangh && (
+              <span className="text-[11px] text-red-500">
+                {errors.sthaniyasangh.message}
+              </span>
             )}
+          </div>
 
-            {/* STATE */}
+          {/* Owner, Vehicle Type, Plate Color */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
 
             <div className="flex flex-col gap-1.5">
-
               <label className="text-xs font-bold text-gray-600">
-                State*
+                Vehicle Owner*
               </label>
 
               <select
-                className={`w-full px-3 py-1.5 border rounded text-xs outline-none bg-white cursor-pointer focus:border-amber-600 ${
-                  errors.state
+                {...register('vehicleOwner')}
+                className={`w-full px-3 py-1.5 border rounded text-xs outline-none bg-[#F0F2F5]/40 text-gray-600 font-medium cursor-pointer ${
+                  errors.vehicleOwner
                     ? 'border-red-500'
                     : 'border-gray-300'
                 }`}
-                {...register('state', {
-                  onChange: () => setValue('district', ''),
-                })}
               >
-
                 <option value="">
-                  Select...
+                  {ownerOptions.length === 0
+                    ? 'No vehicle owners available'
+                    : 'Select...'}
                 </option>
 
-                {Object.keys(NEPAL_GEOGRAPHY_MAP).map(
-                  (province) => (
-                    <option
-                      key={province}
-                      value={province}
-                    >
-                      {province}
-                    </option>
-                  )
-                )}
-
-              </select>
-
-              {errors.state && (
-                <span className="text-[11px] text-red-500 font-medium">
-                  {errors.state.message}
-                </span>
-              )}
-
-            </div>
-
-            {/* DISTRICT */}
-
-            <div className="flex flex-col gap-1.5">
-
-              <label className="text-xs font-bold text-gray-600">
-                District*
-              </label>
-
-              <select
-                disabled={!watchedProvince}
-                className={`w-full px-3 py-1.5 border rounded text-xs outline-none bg-white focus:border-amber-600 ${
-                  errors.district
-                    ? 'border-red-500'
-                    : 'border-gray-300'
-                } disabled:opacity-60`}
-                {...register('district')}
-              >
-
-                <option value="">
-                  {!watchedProvince
-                    ? 'Nothing selected'
-                    : 'Select District...'}
-                </option>
-
-                {availableDistricts.map((district) => (
-                  <option
-                    key={district}
-                    value={district}
-                  >
-                    {district}
+                {ownerOptions.map((opt) => (
+                  <option key={opt.id} value={opt.name}>
+                    {opt.name}
                   </option>
                 ))}
-
               </select>
 
-              {errors.district && (
-                <span className="text-[11px] text-red-500 font-medium">
-                  {errors.district.message}
+              {ownerOptions.length === 0 && (
+                <span className="text-[10px] text-gray-400">
+                  Please add a vehicle owner first.
                 </span>
               )}
 
+              {errors.vehicleOwner && (
+                <span className="text-[11px] text-red-500">
+                  {errors.vehicleOwner.message}
+                </span>
+              )}
             </div>
 
-            {/* LOCAL LEVEL */}
-
             <div className="flex flex-col gap-1.5">
-
               <label className="text-xs font-bold text-gray-600">
-                Local Level
+                Vehicle Type*
               </label>
 
-              <input
-                type="text"
-                placeholder="Enter LocalLevel"
-                className="w-full px-3 py-1.5 border border-gray-300 rounded text-xs outline-none focus:border-amber-600"
-                {...register('localLevel')}
-              />
-
-            </div>
-
-            {/* STREET ADDRESS */}
-
-            <div className="flex flex-col gap-1.5">
-
-              <label className="text-xs font-bold text-gray-600">
-                Street Address
-              </label>
-
-              <input
-                type="text"
-                placeholder="Enter Street Address"
-                className="w-full px-3 py-1.5 border border-gray-300 rounded text-xs outline-none focus:border-amber-600"
-                {...register('streetAddress')}
-              />
-
-            </div>
-
-            {/* EMAIL */}
-
-            <div className="flex flex-col gap-1.5">
-
-              <label className="text-xs font-bold text-gray-600">
-                Email
-              </label>
-
-              <input
-                type="email"
-                placeholder="Enter Email"
-                className={`w-full px-3 py-1.5 border rounded text-xs outline-none focus:border-amber-600 ${
-                  errors.email
+              <select
+                {...register('vehicleType')}
+                className={`w-full px-3 py-1.5 border rounded text-xs outline-none bg-[#F0F2F5]/40 text-gray-600 font-medium cursor-pointer ${
+                  errors.vehicleType
                     ? 'border-red-500'
                     : 'border-gray-300'
-                }`}
-                {...register('email')}
-              />
-
-              {errors.email && (
-                <span className="text-[11px] text-red-500 font-medium">
-                  {errors.email.message}
-                </span>
-              )}
-
-            </div>
-
-            {/* PAN NUMBER */}
-
-            <div className="flex flex-col gap-1.5">
-
-              <label className="text-xs font-bold text-gray-600">
-                PAN Number
-              </label>
-
-              <input
-                type="text"
-                className="w-full px-3 py-1.5 border border-gray-300 rounded text-xs outline-none focus:border-amber-600"
-                {...register('panNumber')}
-              />
-
-            </div>
-
-            {/* PHONE NUMBER */}
-
-            <div className="flex flex-col gap-1.5">
-
-              <label className="text-xs font-bold text-gray-600">
-                Phone Number*
-              </label>
-
-              <input
-                type="tel"
-                className={`w-full px-3 py-1.5 border rounded text-xs outline-none focus:border-amber-600 ${
-                  errors.phoneNo
-                    ? 'border-red-500'
-                    : 'border-gray-300'
-                }`}
-                {...register('phoneNo')}
-              />
-
-              {errors.phoneNo && (
-                <span className="text-[11px] text-red-500 font-medium">
-                  {errors.phoneNo.message}
-                </span>
-              )}
-
-            </div>
-
-            {/* IS INDIVIDUAL TOGGLE */}
-
-            <div className="flex items-center gap-3 pt-2 md:col-span-2 select-none">
-
-              <span className="text-xs font-bold text-gray-600">
-                Is Individual
-              </span>
-
-              <button
-                type="button"
-                onClick={() =>
-                  setValue(
-                    'isIndividual',
-                    !watchedIsIndividual,
-                    { shouldValidate: true }
-                  )
-                }
-                className={`w-9 h-5 rounded-full relative transition-colors focus:outline-none cursor-pointer ${
-                  watchedIsIndividual
-                    ? 'bg-blue-500'
-                    : 'bg-gray-200'
                 }`}
               >
+                <option value="">Select...</option>
 
-                <div
-                  className={`w-3.5 h-3.5 bg-white rounded-full absolute top-[3px] transition-all shadow-sm ${
-                    watchedIsIndividual
-                      ? 'left-[17px]'
-                      : 'left-1'
-                  }`}
-                />
+                {VEHICLE_TYPES.map((type) => (
+                  <option key={type.value} value={type.value}>
+                    {type.label}
+                  </option>
+                ))}
+              </select>
 
-              </button>
-
+              {errors.vehicleType && (
+                <span className="text-[11px] text-red-500">
+                  {errors.vehicleType.message}
+                </span>
+              )}
             </div>
-
-          </div>
-        </div>
-
-        {/* ==================================================
-            SUBSECTION 2: CITIZENSHIP DETAILS
-        ================================================== */}
-
-        {watchedIsIndividual && (
-          <div className="space-y-4">
-
-            <h3 className="text-xs font-bold text-gray-800 uppercase tracking-wider border-b border-gray-100 pb-2 select-none">
-              Enter Citizenship Details
-            </h3>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
-
-              {/* CITIZENSHIP NUMBER */}
-
-              <div className="flex flex-col gap-1.5">
-
-                <label className="text-xs font-bold text-gray-600">
-                  Citizenship Number
-                </label>
-
-                <input
-                  type="text"
-                  placeholder="Enter Citizenship Number"
-                  className="w-full px-3 py-1.5 border border-gray-300 rounded text-xs outline-none focus:border-amber-600"
-                  {...register('citizenshipNo')}
-                />
-
-              </div>
-
-              {/* CITIZENSHIP FRONT IMAGE */}
-
-              <div className="flex flex-col gap-1.5">
-
-                <label className="text-xs font-bold text-gray-600">
-                  Citizenship Front Image
-                </label>
-
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) =>
-                    setCitizenshipFront(
-                      e.target.files?.[0] || null
-                    )
-                  }
-                  className="cursor-pointer bg-white border border-gray-300 text-gray-700 text-sm rounded-md focus:ring-blue-500 focus:border-blue-500 block w-full shadow-sm file:cursor-pointer file:bg-gray-300 file:text-gray-800 file:border-0 file:mr-3 file:px-4 file:py-2 hover:file:bg-gray-400"
-                />
-
-                {citizenshipFront && (
-                  <span className="text-[10px] text-gray-500">
-                    Selected: {citizenshipFront.name}
-                  </span>
-                )}
-
-                <ImagePreview
-                  file={citizenshipFront}
-                  title="Citizenship Front Preview"
-                />
-
-              </div>
-
-              {/* CITIZENSHIP BACK IMAGE */}
-
-              <div className="flex flex-col gap-1.5">
-
-                <label className="text-xs font-bold text-gray-600">
-                  Citizenship Back Image
-                </label>
-
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) =>
-                    setCitizenshipBack(
-                      e.target.files?.[0] || null
-                    )
-                  }
-                  className="cursor-pointer bg-white border border-gray-300 text-gray-700 text-sm rounded-md focus:ring-blue-500 focus:border-blue-500 block w-full shadow-sm file:cursor-pointer file:bg-gray-300 file:text-gray-800 file:border-0 file:mr-3 file:px-4 file:py-2 hover:file:bg-gray-400"
-                />
-
-                {citizenshipBack && (
-                  <span className="text-[10px] text-gray-500">
-                    Selected: {citizenshipBack.name}
-                  </span>
-                )}
-
-                <ImagePreview
-                  file={citizenshipBack}
-                  title="Citizenship Back Preview"
-                />
-
-              </div>
-
-            </div>
-          </div>
-        )}
-
-        {/* ==================================================
-            CONTACT DETAILS - COMPANY
-        ================================================== */}
-
-        {!watchedIsIndividual && (
-          <div className="space-y-4">
-
-            <h3 className="text-sm font-bold text-gray-700 pb-2">
-              Enter Contact Details
-            </h3>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-
-              {/* CONTACT NAME */}
-
-              <div className="flex flex-col gap-1.5">
-
-                <label className="text-xs font-bold text-gray-600">
-                  Name
-                </label>
-
-                <input
-                  {...register('contactName')}
-                  placeholder="Enter contact person name"
-                  className="w-full px-3 py-2 border border-gray-300 rounded text-xs"
-                />
-
-              </div>
-
-              {/* CONTACT EMAIL */}
-
-              <div className="flex flex-col gap-1.5">
-
-                <label className="text-xs font-bold text-gray-600">
-                  Email
-                </label>
-
-                <input
-                  type="email"
-                  {...register('contactEmail')}
-                  placeholder="Enter contact email"
-                  className="w-full px-3 py-2 border border-gray-300 rounded text-xs"
-                />
-
-              </div>
-
-              {/* CONTACT NUMBER */}
-
-              <div className="flex flex-col gap-1.5">
-
-                <label className="text-xs font-bold text-gray-600">
-                  Contact Number
-                </label>
-
-                <input
-                  type="tel"
-                  {...register('contactNumber')}
-                  placeholder="Enter contact number"
-                  className="w-full px-3 py-2 border border-gray-300 rounded text-xs"
-                />
-
-              </div>
-
-            </div>
-          </div>
-        )}
-
-        {/* ==================================================
-            SUBSECTION 3: REGISTRATION DETAILS
-        ================================================== */}
-
-        <div className="space-y-4">
-
-          <h3 className="text-xs font-bold text-gray-800 uppercase tracking-wider border-b border-gray-100 pb-2 select-none">
-            Enter Registration Details
-          </h3>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
-
-            {/* REGISTRATION NUMBER */}
 
             <div className="flex flex-col gap-1.5">
-
               <label className="text-xs font-bold text-gray-600">
-                Registration Number
+                Plate Color*
+              </label>
+
+              <select
+                {...register('plateColor')}
+                className={`w-full px-3 py-1.5 border rounded text-xs outline-none bg-[#F0F2F5]/40 text-gray-600 font-medium cursor-pointer ${
+                  errors.plateColor
+                    ? 'border-red-500'
+                    : 'border-gray-300'
+                }`}
+              >
+                <option value="">Select...</option>
+                <option value="Red">Red</option>
+                <option value="White">White</option>
+                <option value="Black">Black</option>
+              </select>
+
+              {errors.plateColor && (
+                <span className="text-[11px] text-red-500">
+                  {errors.plateColor.message}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Engine, Chassis, Company */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-bold text-gray-600">
+                Engine Number
               </label>
 
               <input
                 type="text"
-                placeholder="Enter Registration Number"
+                placeholder="Enter Engine Number"
+                {...register('engineNumber')}
                 className="w-full px-3 py-1.5 border border-gray-300 rounded text-xs outline-none focus:border-amber-600"
-                {...register('registrationNo')}
               />
-
             </div>
 
-            {/* REGISTRATION DOCUMENT */}
-
             <div className="flex flex-col gap-1.5">
-
               <label className="text-xs font-bold text-gray-600">
-                Registration Document
+                Chassis Number
               </label>
 
               <input
-                type="file"
-                accept="image/*"
-                onChange={(e) =>
-                  setRegistrationDocument(
-                    e.target.files?.[0] || null
-                  )
-                }
-                className="cursor-pointer bg-white border border-gray-300 text-gray-700 text-sm rounded-md focus:ring-blue-500 focus:border-blue-500 block w-full shadow-sm file:cursor-pointer file:bg-gray-300 file:text-gray-800 file:border-0 file:mr-3 file:px-4 file:py-2 hover:file:bg-gray-400"
+                type="text"
+                placeholder="Enter Chassis No."
+                {...register('chassisNumber')}
+                className="w-full px-3 py-1.5 border border-gray-300 rounded text-xs outline-none focus:border-amber-600"
               />
-
-              {registrationDocument && (
-                <span className="text-[10px] text-gray-500">
-                  Selected: {registrationDocument.name}
-                </span>
-              )}
-
-              <ImagePreview
-                file={registrationDocument}
-                title="Registration Document Preview"
-              />
-
             </div>
 
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-bold text-gray-600">
+                Company Name
+              </label>
+
+              <input
+                type="text"
+                placeholder="Enter Company Name"
+                {...register('companyName')}
+                className="w-full px-3 py-1.5 border border-gray-300 rounded text-xs outline-none focus:border-amber-600"
+              />
+            </div>
           </div>
-        </div>
 
-        {/* ==================================================
-            FORM ACTION BUTTONS
-        ================================================== */}
+          {/* Model Number and Plate Type */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
 
-        <div className="flex items-center justify-end gap-3 border-t border-gray-100 pt-5">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-bold text-gray-600">
+                Model No.
+              </label>
 
-          <button
-            type="button"
-            onClick={() =>
-              router.push('/admin/vehicle/vehicle-owner')
-            }
-            className="text-xs font-bold text-gray-400 hover:text-gray-600 transition focus:outline-none cursor-pointer"
-          >
-            Cancel
-          </button>
+              <input
+                type="text"
+                placeholder="Enter Model No."
+                {...register('modelNo')}
+                className="w-full px-3 py-1.5 border border-gray-300 rounded text-xs outline-none focus:border-amber-600"
+              />
+            </div>
 
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="px-6 py-2 bg-[#b06000] hover:bg-[#905000] text-white text-xs font-bold rounded shadow-sm transition cursor-pointer disabled:opacity-60"
-          >
-            {isSubmitting ? 'Saving...' : 'Save'}
-          </button>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-bold text-gray-600">
+                Plate Type*
+              </label>
 
-        </div>
+              <select
+                {...register('plateType')}
+                className={`w-full px-3 py-1.5 border rounded text-xs outline-none bg-[#F0F2F5]/40 text-gray-600 font-medium cursor-pointer ${
+                  errors.plateType
+                    ? 'border-red-500'
+                    : 'border-gray-300'
+                }`}
+              >
+                <option value="">Select...</option>
+                <option value="Embossed">Embossed</option>
+                <option value="Provincial">Provincial</option>
+                <option value="Zonal">Zonal</option>
+              </select>
 
-      </form>
+              {errors.plateType && (
+                <span className="text-[11px] text-red-500">
+                  {errors.plateType.message}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Conditional Plate Forms */}
+          {watchedPlateType === 'Embossed' && (
+            <EmbossedPlateForm
+              register={register}
+              watch={watch}
+              errors={errors}
+            />
+          )}
+
+          {watchedPlateType === 'Provincial' && (
+            <ProvincialPlateForm
+              register={register}
+              watch={watch}
+              errors={errors}
+            />
+          )}
+
+          {/* Action Row */}
+          <div className="flex items-center justify-end gap-5 pt-4 mt-4 select-none">
+
+            <button
+              type="button"
+              onClick={() => {
+                reset();
+                router.push('/admin/vehicle/vehicles');
+              }}
+              className="text-xs font-semibold text-gray-400 hover:text-gray-600 transition cursor-pointer focus:outline-none"
+            >
+              Cancel
+            </button>
+
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="px-6 py-1.5 bg-[#b06000] hover:bg-[#905000] text-white text-xs font-semibold rounded shadow-sm cursor-pointer transition focus:outline-none disabled:opacity-50"
+            >
+              {isSubmitting
+                ? 'Saving...'
+                : editId
+                  ? 'Update'
+                  : 'Save'}
+            </button>
+
+          </div>
+        </form>
+      </div>
     </div>
   );
 }
