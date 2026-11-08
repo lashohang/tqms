@@ -176,7 +176,7 @@ export default function DashboardLayout({
             className="flex items-center"
           >
             <Image
-              src="/logo.png"
+              src="/Logo.png"
               alt="Lodbod Checkpoint Logo"
               width={105}
               height={40}
@@ -450,7 +450,7 @@ export default function DashboardLayout({
               <div className="w-10 h-10 rounded-full overflow-hidden shrink-0 border border-gray-100 shadow-sm relative">
                 <Image 
                   className="rounded-full object-fill w-full h-full" 
-                  src="/logo.png" 
+                  src="/Logo.png" 
                   fill 
                   alt="User Profile" 
                   sizes="40px"
